@@ -1,9 +1,8 @@
 # Frisquet connect api plugin pour Domoticz
-#
+#!!!!! Attention : il s'agit d'une version alpha!!!!!!
 # Author: Krakinou
 #
 #TODO : Derogation
-#       ECS
 #       NumÃ©ro chaudiere optionnelle
 #       Mode et selecteur
 #       CAMB
@@ -15,18 +14,17 @@
 #       programmation / jour
 #       alarmes
 """
-<plugin key="Frisquet-connect" name="Frisquet-Connect plugin for Domoticz" author="Krakinou" version="0.0.1" wikilink="https://wiki.domoticz.com/Plugins">
+<plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.0.2" wikilink="https://wiki.domoticz.com/Plugins">
     <description>
         <h2>Frisquet-connect pour Domoticz</h2><br/>
-        Version Alpha d'un plugin frisquet-Connect pour Domoticz permettant de controler sa chaudière si un Frisquet-Connect est connecté
-        Les dispositifs suivants sont créés automatiquement par le plugin :
+        Version Alpha d'un plugin frisquet-Connect pour Domoticz permettant de controler sa chaudiere si un Frisquet-Connect est connecte. Les dispositifs suivants sont crees automatiquement par le plugin :
         <ul style="list-style-type:square">
             <li>Temperature de zone</li>
             <li>Consigne Hors-Gel de zone</li>
-            <li>Consigne Réduit de zone</li>
+            <li>Consigne Reduit de zone</li>
             <li>Consigne Confort de zone</li>
+            <li>RÃ©glage du mode ECS (Eau Chaude Sanitaire)</li>
         </ul>
-        
     </description>
     <params>
         <param field="Username" label="Username" required="true"/>
@@ -58,10 +56,15 @@ class FrisquetConnectPlugin:
     enabled = False
     def __init__(self):
         self.httpConn = None
+        self.incomingPayload = None
         self.pendingPayload = None
         self.auth_token = None
         self.token_expiry = 0
         self.num_chaudiere = None
+        self.ecs_in_to_out = {m["ecs_in"]: m["ecs_out"] for m in const.MODE_ECS}
+        self.ecs_out_to_in = {m["ecs_out"]: m["ecs_in"] for m in const.MODE_ECS}
+        self.ecs_in_to_nValue = {m["ecs_in"]: m["nValue"] for m in const.MODE_ECS}
+        self.ecs_out_to_nValue = {m["ecs_out"]: m["nValue"] for m in const.MODE_ECS}
         return
 
     def onStart(self):
@@ -115,7 +118,11 @@ class FrisquetConnectPlugin:
                     mode = "RED"
                 case "4": #HG
                     mode = "HG"
-        payload = [{"cle":"CONS_" + mode + "_Z" + str(Unit)[0], "valeur":payloadLevel}]
+            payload = [{"cle":"CONS_" + mode + "_Z" + str(Unit)[0], "valeur":payloadLevel}]
+
+        if Devices[Unit].Type == 244:
+            payload = [{"cle":"MODE_ECS", "valeur": str(self.ecs_in_to_out.get(Level))}]
+
         self.pendingPayload = json.dumps(payload)
         Domoticz.Debug("Payload to push : " + str(self.pendingPayload))
 
@@ -133,7 +140,7 @@ class FrisquetConnectPlugin:
 
     def ensure_token(self):
         if not self.is_token_valid():
-            Domoticz.Debug("Token invalide ou expiré, récupération d'un nouveau token")
+            Domoticz.Debug("Token invalide ou expire, recuperation d'un nouveau token")
             self.connectToFrisquet()
 
     def onStop(self):
@@ -185,19 +192,19 @@ class FrisquetConnectPlugin:
         Domoticz.Debug("onMessage called for " + str(Connection.Name))
         DumpHTTPResponseToLog(Data)
         self.pendingPayload = None
-        jsonData = None
+        self.incomingPayload = None
 
         if Data.get("Data"):
-            jsonData=json.loads(Data["Data"].decode("utf-8", "ignore"))
+            self.incomingPayload=json.loads(Data["Data"].decode("utf-8", "ignore"))
         Status = int(Data["Status"])
         match Connection.Name:
             case "connectToFrisquetAPI":
                 if (Status == 201):
-                    self.auth_token = jsonData["token"]
-                    Domoticz.Log("token received : " + self.auth_token)
+                    self.auth_token = self.incomingPayload["token"]
+                    Domoticz.Debug("token received : " + self.auth_token)
                     self.token_expiry = time.time() + 3600
-                    self.num_chaudiere = jsonData["utilisateur"]["sites"][0]["identifiant_chaudiere"]
-                    Domoticz.Log("numero chaudiere : " + self.num_chaudiere)
+                    self.num_chaudiere = self.incomingPayload["utilisateur"]["sites"][0]["identifiant_chaudiere"]
+                    Domoticz.Debug("numero chaudiere : " + self.num_chaudiere)
                 elif (Status == 403):
                     Domoticz.Error("Erreur de connexion : Nom ou mot de passe incorrect?")
                     self.auth_token = None
@@ -208,23 +215,25 @@ class FrisquetConnectPlugin:
                     Domoticz.Log("Connection impossible, erreur : " + str(Status))
             case "getFrisquetData":
                 if (Status == 200):
-                    for zone in jsonData["zones"]:
-                        self.createDevice(zone)
-                        self.updateDeviceFromFrisquet(zone)
+                    self.createDeviceChaudiere()
+                    self.updateDeviceFromFrisquetChaudiere()
+                    for zone in self.incomingPayload["zones"]:
+                        self.createDeviceByZone(zone)
+                        self.updateDeviceFromFrisquetByZone(zone)
             case "pushUpdateToFrisquet":
                 if (Status != 200):
-                    if jsonData is not None and jsonData.get("message"):
-                        message = str(jsonData["message"])
-                        Domoticz.Log("Le serveur a renvoyé une erreur  " + str(Status) + " - " + message)
+                    if self.incomingPayload is not None and self.incomingPayload.get("message"):
+                        message = str(self.incomingPayload["message"])
+                        Domoticz.Log("Le serveur a renvoye une erreur  " + str(Status) + " - " + message)
                     else:
-                        Domoticz.Log("Le serveur a renvoyé une erreur  " + str(Status))
+                        Domoticz.Log("Le serveur a renvoye une erreur  " + str(Status))
 
             case _:
                 Domoticz.Error("Connection inconnue")
         self.httpConn.Disconnect()
 
 
-    def updateDeviceFromFrisquet(self, zone):
+    def updateDeviceFromFrisquetByZone(self, zone):
         num_zone = str(zone["numero"])
         devices_zone = [
             { "unit": int(num_zone + const.C_TAMB), "nValue":0, "sValue":str(zone["carac_zone"]["TAMB"] / 10.0) },
@@ -233,13 +242,21 @@ class FrisquetConnectPlugin:
             { "unit": int(num_zone + const.C_CONS_CONF), "nValue":0, "sValue":str(zone["carac_zone"]["CONS_CONF"] / 10.0) }
             ]
         for device_zone in devices_zone:
-            Domoticz.Debug("Mise Ã  jour de " + str(Devices[device_zone["unit"]].Name) + " Ã  la valeur " + str(device_zone["sValue"]))
             device=Devices[device_zone["unit"]]
+            Domoticz.Debug("Mise Ã  jour de " + str(device.Name) + " Ã  la valeur " + str(device_zone["sValue"]))
             if device.sValue != str(device_zone["sValue"]):
                 device.Update(nValue=0, sValue=str(device_zone["sValue"]))
 
-    def createDevice(self, zone):
-#1 ECS
+    def updateDeviceFromFrisquetChaudiere(self):
+        devices_chaudiere = [
+            { "unit":1, "nValue":self.ecs_out_to_nValue.get(str(self.incomingPayload["ecs"]["MODE_ECS"]["id"])), "sValue":self.ecs_out_to_in.get(str(self.incomingPayload["ecs"]["MODE_ECS"]["id"])) }
+            ]
+        for device_chaudiere in devices_chaudiere:
+            device=Devices[device_chaudiere["unit"]]
+            Domoticz.Debug("Mise Ã  jour de " + str(device.Name) + " Ã  la valeur " + str(device_chaudiere["sValue"]))
+            device.Update(nValue=int(device_chaudiere["nValue"]), sValue=str(device_chaudiere["sValue"]))
+
+    def createDeviceByZone(self, zone):
 #Zone 1 : 11 TAMB, 12 CONS_CONF, 13 CONS_RED, 14, CONS_HG
 #Zone 2:  21 TAMB, 22 CONS_CONF, etc.
 #          'MODE': 8,
@@ -247,28 +264,52 @@ class FrisquetConnectPlugin:
 #	       'TAMB': 150, TempÃ©rature de la zone
 #	       'CAMB': 150,
 #	       'DERO': False, DÃ©rogation
-#	       'CONS_RED': 170, Thermostat Consommation rÃ©duite
-#	       'CONS_CONF': 190, Thermostat consommation confort
-#	       'CONS_HG': 150, Thermostat consommation HG
 #	       'ACTIVITE_BOOST': False
         num_zone = str(zone["numero"])
         nom_zone = zone["nom"]
         devices_zone = [
-            {"unit": int(num_zone + const.C_TAMB), "name": "Température " + nom_zone, "TypeName": "Temperature"},
-            {"unit": int(num_zone + const.C_CONS_RED), "name": "Consigne Réduit " + nom_zone, "TypeName": "Setpoint"},
+            {"unit": int(num_zone + const.C_TAMB), "name": "Temperature " + nom_zone, "TypeName": "Temperature"},
+            {"unit": int(num_zone + const.C_CONS_RED), "name": "Consigne Reduit " + nom_zone, "TypeName": "Setpoint"},
             {"unit": int(num_zone + const.C_CONS_CONF), "name": "Consigne Confort " + nom_zone, "TypeName": "Setpoint"},
             {"unit": int(num_zone + const.C_CONS_HG), "name": "Consigne Hors-Gel " + nom_zone, "TypeName": "Setpoint"}
             ]
         for device_zone in devices_zone:
             if not Devices or device_zone["unit"] not in Devices:
-                Domoticz.Debug("Création du device " + device_zone["name"])
-                Domoticz.Device(Name=device_zone["name"], Unit=device_zone["unit"], TypeName=device_zone["TypeName"]).Create()
+                Domoticz.Debug("Creation du device " + device_zone["name"])
+                Domoticz.Device(Name=device_zone["name"], \
+                                Unit=device_zone["unit"], \
+                                TypeName=device_zone["TypeName"] \
+                                ).Create()
+
+    def createDeviceChaudiere(self):
+#1 ECS
+        Options_ecs = {"LevelActions": "|| ||",
+                   "LevelNames": "Stop|Eco+ Timer|Eco+|Eco Timer|Eco|Max",
+                   "LevelOffHidden": "false",
+                   "SelectorStyle": "1"}
+        devices_chaudiere = [
+            {"unit":1, "name": "Mode Eau Chaude Sanitaire", "TypeName": "Selector Switch", "Options": Options_ecs, "Image":11}
+        ]
+        for device_chaudiere in devices_chaudiere:
+            if not Devices or device_chaudiere["unit"] not in Devices:
+                Domoticz.Debug("Creation du device " + device_chaudiere["name"])
+                Domoticz.Device(Name=device_chaudiere["name"], \
+                                Unit=device_chaudiere["unit"], \
+                                TypeName=device_chaudiere["TypeName"], \
+                                Options=device_chaudiere["Options"], \
+                                Image=device_chaudiere["Image"]
+                                ).Create()
 
     def onCommand(self, Unit, Command, Level, Hue):
-        Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
-        if Devices[Unit].Type==242:
+        Domoticz.Debug("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        device=Devices[Unit]
+        if device.Type==242 or device.Type==244:
             self.pushUpdateToFrisquet(Unit, Level)
-            Devices[Unit].Update(nValue=0, sValue=str(Level))
+            match device.Type:
+                case 242:
+                    device.Update(nValue=0, sValue=str(Level))
+                case 244:
+                    device.Update(nValue=self.ecs_in_to_nValue.get(Level), sValue=str(Level))
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Debug("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(Priority) + "," + Sound + "," + ImageFile)
