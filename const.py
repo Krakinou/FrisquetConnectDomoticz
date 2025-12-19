@@ -36,11 +36,17 @@ OPTIONS_MODE = {"LevelActions": "|| ||",
                 "LevelNames": "Auto|Confort|Reduit|Hors-Gel",
                 "LevelOffHidden": "false",
                 "SelectorStyle": "1"}
+MODE = [
+    { "nom":"Confort",  "value_out":"6", "value_in":"Confort",  "nValue":0},
+    { "nom":"Réduit",   "value_out":"7", "value_in":"Réduit",   "nValue":0 },
+    { "nom":"Hors-Gel", "value_out":"8", "value_in":"Hors-Gel", "nValue":0}
+]
 
 C_ZONE = [
     { "nom":"Temperature",    "unit":"1", "mode":"TAMB",      "TypeName":"Temperature",     "Options":None},
     { "nom":"Confort",        "unit":"2", "mode":"CONS_CONF", "TypeName":"Setpoint",        "Options":None },
     { "nom":"Reduit",         "unit":"3", "mode":"CONS_RED",  "TypeName":"Setpoint",        "Options":None},
     { "nom":"Hors-Gel",       "unit":"4", "mode":"CONS_HG",   "TypeName":"Setpoint",        "Options":None},
-    { "nom":"Mode Permanent", "unit":"5", "mode":"SELECTEUR", "TypeName":"Selector Switch", "Options":OPTIONS_MODE}
+    { "nom":"Mode Permanent", "unit":"5", "mode":"SELECTEUR", "TypeName":"Selector Switch", "Options":OPTIONS_MODE},
+    { "nom":"Mode Actuel",    "unit":"6", "mode":"MODE",      "TypeName":"Text",            "Options":None}
 ]

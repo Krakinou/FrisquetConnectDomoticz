@@ -1,10 +1,8 @@
 # Frisquet connect api plugin pour Domoticz
-#!!!!! Attention : il s'agit d'une version alpha!!!!!!
 # Author: Krakinou
 #
 #TODO : Derogation
 #       Numéro chaudiere optionnelle
-#       Mode et selecteur
 #       CAMB=> tcible?
 #       BOOST
 #       Chaudière en veille
@@ -13,6 +11,7 @@
 #       Vacances
 #       programmation / jour
 #       alarmes
+#       Consommation
 """
 <plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.1.0" wikilink="https://github.com/Krakinou/FrisquetConnectDomoticz">
     <description>
@@ -179,7 +178,6 @@ class FrisquetConnectPlugin:
                 sValue= next( (m["value_in"] for m in getattr(const, device_zone["mode"], None) if m["value_out"] == str(value_out)), None)
                 nValue= next( (m["nValue"]   for m in getattr(const, device_zone["mode"], None) if m["value_out"] == str(value_out)), None)
             if str(device.sValue) != str(sValue) or self.deviceUpdatedMoreThan(device, 300):
-                    Domoticz.Log("device.sValue : " + str(device.sValue) + ", sValue : " + str(sValue))
                     Domoticz.Debug("Mise à jour de " + str(device.Name) + " à la valeur " + str(sValue))
                     device.Update(nValue=int(nValue), sValue=str(sValue))
 
@@ -198,14 +196,8 @@ class FrisquetConnectPlugin:
 #            else:
 #               TO DO
     def createDeviceByZone(self, zone):
-#Zone 1 : 11 TAMB, 12 CONS_CONF, 13 CONS_RED, 14, CONS_HG, 15 MODE
+#Zone 1 : 11 TAMB, 12 CONS_CONF, 13 CONS_RED, 14, CONS_HG, 15 MODE PERMANENT, 16 MODE ACTUEL
 #Zone 2:  21 TAMB, 22 CONS_CONF, etc.
-#          'MODE': 8,
-#          'SELECTEUR': 8,
-#	       'TAMB': 150, Température de la zone
-#	       'CAMB': 150,
-#	       'DERO': False, Dérogation
-#	       'ACTIVITE_BOOST': False
         num_zone = str(zone["numero"])
         nom_zone = zone["nom"]
         for device_zone in const.C_ZONE:
