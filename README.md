@@ -9,7 +9,8 @@ Domoticz Plugin For Frisquet Connect Boiler control
 
 
 # Features
-- Control Confort, reduce and Frost Protection Thermostat for one or multiple zone(s)
+- Control mode (Confort, reduced and Frost Protection) for one or multiple zone(s)
+- Force one or multiple zone on a mode irrespectively of the program
 - Access the temperature from one or multiple zone(s)
 - Hot Water Control
 
@@ -51,6 +52,7 @@ Device Name | Type | Zone Dependent | Fonction |
 |Consigne Hors-Gel Zone X | Setpoint |Yes | Frost Protection Thermostat setpoint for Zone X |
 |Consigne Reduit Zone X | Setpoint | Yes |Reduce Thermostat setpoint Zone X |
 |Consigne Confort Zone X | Setpoint | Yes |Confort Thermostat setpoint Zone X |
+|Mode Permanent Zone X | Selector Switch| Yes | Force the zone to a given mode |
 |Mode Eau Chaude Sanitaire | Selector Switch | No | Hot Water control |  
 
 # Contribute

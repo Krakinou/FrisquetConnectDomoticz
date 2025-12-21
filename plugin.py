@@ -14,15 +14,16 @@
 #       programmation / jour
 #       alarmes
 """
-<plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.0.2" wikilink="https://wiki.domoticz.com/Plugins">
+<plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.1.0" wikilink="https://github.com/Krakinou/FrisquetConnectDomoticz">
     <description>
         <h2>Frisquet-connect pour Domoticz</h2><br/>
-        Version Alpha d'un plugin frisquet-Connect pour Domoticz permettant de controler sa chaudiere si un Frisquet-Connect est connecte. Les dispositifs suivants sont crees automatiquement par le plugin :
+        Version Beta d'un plugin frisquet-Connect pour Domoticz permettant de controler sa chaudiere si un Frisquet-Connect est connecte. Les dispositifs suivants sont crees automatiquement par le plugin :
         <ul style="list-style-type:square">
-            <li>Temperature de zone</li>
+            <li>Capteur de Temperature de zone</li>
             <li>Consigne Hors-Gel de zone</li>
             <li>Consigne Reduit de zone</li>
             <li>Consigne Confort de zone</li>
+            <li>Mode Permanent de zone</li>
             <li>Réglage du mode ECS (Eau Chaude Sanitaire)</li>
         </ul>
     </description>
