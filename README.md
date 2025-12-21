@@ -15,6 +15,8 @@ Domoticz Plugin For Frisquet Connect Boiler control
 - Hot Water Control
 
 # Work in Progress
+- Add image for heating mode
+- kWh
 - Multiple boiler control
 - Boost control
 - On/Off control
@@ -53,6 +55,7 @@ Device Name | Type | Zone Dependent | Fonction |
 |Consigne Reduit Zone X | Setpoint | Yes |Reduce Thermostat setpoint Zone X |
 |Consigne Confort Zone X | Setpoint | Yes |Confort Thermostat setpoint Zone X |
 |Mode Permanent Zone X | Selector Switch| Yes | Force the zone to a given mode |
+|Mode Actuel Zone X | Text | Yes | Indicate the current heating mode |
 |Mode Eau Chaude Sanitaire | Selector Switch | No | Hot Water control |  
 
 # Contribute
