@@ -3,7 +3,6 @@
 #
 #TODO : Derogation
 #       Numéro chaudiere optionnelle
-#       CAMB=> tcible?
 #       BOOST
 #       Chaudière en veille
 #       Auto/manu
