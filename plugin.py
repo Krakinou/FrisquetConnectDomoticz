@@ -8,7 +8,6 @@
 #       Vacances
 #       programmation / jour
 #       alarmes
-#       Consommation
 
 """
 <plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.2.1" wikilink="https://github.com/Krakinou/FrisquetConnectDomoticz">
@@ -40,9 +39,11 @@
 </plugin>
 """
 
+import os
 import Domoticz as Domoticz
 import time
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 import json
 import random
 import string
@@ -59,6 +60,8 @@ class FrisquetConnectPlugin:
         self.token_expiry = 0
         self.num_chaudiere = None
         self.beatCounter = 0
+        self.onceADay = None
+        self.initializeEnergy = []
         return
 
     def is_token_valid(self):
@@ -77,12 +80,15 @@ class FrisquetConnectPlugin:
         return ''.join(random.choice(caracteres) for _ in range(longueur))
 
     def deviceUpdatedMoreThan(self, device, seconds):
-        last = datetime.strptime(device.LastUpdate, "%Y-%m-%d %H:%M:%S")
-        return (datetime.now() - last).total_seconds() > seconds
+        if device and device.Unit in Devices:
+            last = datetime.strptime(device.LastUpdate, "%Y-%m-%d %H:%M:%S")
+            return (datetime.now() - last).total_seconds() > seconds
+        return 0
 
     def connectToFrisquet(self):
         if not self.active:
             return
+
         Domoticz.Debug("Starting Connect To Frisquet")
         payload = {
              "locale": "fr",
@@ -105,14 +111,31 @@ class FrisquetConnectPlugin:
 
     def getFrisquetData(self):
         Domoticz.Debug("Starting data retrieval")
-        self.httpConn = Domoticz.Connection(
+
+        self.httpConnData = Domoticz.Connection(
             Name="getFrisquetData",
             Transport="TCP/IP",
             Protocol="HTTPS",
             Address= const.HOST,
             Port="443"
         )
-        self.httpConn.Connect()
+        self.httpConnData.Connect()
+
+    def getFrisquetEnergy(self):
+        if self.onceADay == date.today():
+            return
+        self.onceADay = date.today()
+
+        Domoticz.Debug("Starting Consumption retrieval")
+
+        self.httpConnEnergy = Domoticz.Connection(
+            Name="getFrisquetEnergy",
+            Transport="TCP/IP",
+            Protocol="HTTPS",
+            Address= const.HOST,
+            Port="443"
+        )
+        self.httpConnEnergy.Connect()
 
     def getValueOut(self, Unit, Level):
         device=Devices[Unit]
@@ -140,12 +163,12 @@ class FrisquetConnectPlugin:
 
     def pushUpdateToFrisquet(self, Unit, Level):
         Domoticz.Debug("Starting Push Data")
+
         device = Devices[Unit]
         if device.Type == 242: #setpoint (forcement par zone)
             #str(Unit)[0] correspond au numéro de la zone
             cle= next((m["mode"] for m in const.C_ZONE if m["unit"] == str(Unit)[1]), None) + '_Z' + str(Unit)[0]
             payloadValeur = Level * 10
-
         if device.Type == 244: #switch selector
             if Devices[Unit].Unit > 9: #Valeur par zone
                 cle           = next((m["mode"] for m in const.C_ZONE if m["unit"] == str(Unit)[1]), None) + '_Z' + str(Unit)[0]
@@ -168,14 +191,12 @@ class FrisquetConnectPlugin:
     def updateModeDero(self, zone, value_out):
         #La déro est à true ou false dans les zones, mais l'activation se fait sur la chaudiere générale. Il existe donc 2 devices (au moins) : celui de la zone
         # en lecture seule et le général en modifiable
-        Domoticz.Debug("Mise à jour de la dérogation sur la chaudiere générale avec " + str(value_out))
         device_dero=Devices[int(next((m["unit"] for m in const.C_CHAUDIERE if m["mode"] == "MODE_DERO"), None))]
-        Domoticz.Debug("et nValue : " + str(device_dero.nValue))
         if not device_dero.Unit in Devices:
             return
         if value_out == False:
-            Domoticz.Debug("device dero nvalue : " + str(device_dero.nValue))
             if device_dero.nValue > 0:
+                Domoticz.Debug("Mise à jour de " + str(device_dero.Name + " avec la valeur 0"))
                 device.Update(nValue=0, sValue="0")
             return
         sValue_dero=str(next( (m["value_in"] for m in const.MODE_DERO if m["value_out"] == str(zone["carac_zone"]["MODE"])), None))
@@ -183,6 +204,138 @@ class FrisquetConnectPlugin:
         if device_dero.sValue != sValue_dero:
             device_dero.Update(nValue=1, sValue=sValue_dero)
         return
+
+    def getenergyFromJSON(self, data, type_energy, month, year):
+        for item in data.get(type_energy, []):
+            if item["mois"] == month and item["annee"] == year:
+                return item["valeur"]
+        return None
+
+    def writeEnergy(self, type_energy, date, energy, energy_total):
+        folder_plugin = Parameters["HomeFolder"]
+        file_energy = os.path.join(folder_plugin, const.CONSOMMATION)
+        if os.path.exists(file_energy):
+            with open(file_energy, "r") as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    data = []
+        else:
+            data = []
+
+        exist = False
+        modified = False
+        for entry in data:
+            if (
+                entry.get("boiler_id") == self.num_chaudiere and
+                entry.get("type") == type_energy and
+                entry.get("date") == date
+            ):
+                if entry["energy"] != energy:
+                    entry["energy"] = energy
+                    Domoticz.Debug(f"Mise à jour conso existante : {entry}")
+                    modified = True
+                if entry["monthly_energy_to_date"] != energy_total:
+                    entry["monthly_energy_to_date"] = energy_total
+                    Domoticz.Debug(f"Mise à jour conso totale existante : {entry}")
+                    modified = True
+                exist = True
+                break
+
+        if not exist:
+            record = {
+                "boiler_id": self.num_chaudiere,
+                "type": type_energy,
+                "date": date,
+                "energy": energy,
+                "monthly_energy_to_date": energy_total
+            }
+            Domoticz.Debug("Stockage de la consommation : " + str(record))
+            modified = True
+            data.append(record)
+        if modified:
+            with open(file_energy, "w") as f:
+                json.dump(data, f, indent=4)
+
+    def getEnergyFromFile(self):
+        folder_plugin = Parameters["HomeFolder"]
+        file_energy = os.path.join(folder_plugin, const.CONSOMMATION)
+        if os.path.exists(file_energy):
+            with open(file_energy, "r") as f:
+                try:
+                    return json.load(f)
+                except json.JSONDecodeError:
+                    return []
+        return []
+
+    def getEnergyFiltered(self, boiler_id, type_energy):
+        data = self.getEnergyFromFile()
+        return [
+            entry for entry in data
+            if entry["boiler_id"] == boiler_id and entry["type"] == type_energy
+        ]
+
+    def getLastEnergyOfMonth(self, boiler_id, type_energy, month, year):
+        data = self.getEnergyFiltered(boiler_id, type_energy)
+        filtered = []
+        for entry in data:
+            try:
+                entry_date = datetime.strptime(entry.get("date"), "%Y-%m-%d")
+            except 	(ValueError, TypeError):
+                continue
+            if entry_date.year == year and entry_date.month == month:
+                filtered.append((entry_date, entry))
+        if not filtered: return None
+
+        filtered.sort(key=lambda x: x[0], reverse=True)
+        Domoticz.Debug("Value to return : " + str(filtered[0][1]))
+        return filtered[0][1]
+
+    def updateEnergyFromFrisquet(self, incomingPayload):
+        for device_init in self.initializeEnergy:
+            Domoticz.Debug("Initialisation de l\'historique de " + str(device_init))
+            self.InitEnergyFromFrisquet(device_init, incomingPayload)
+        for device_chaudiere in const.C_CHAUDIERE:
+            device=Devices[int(device_chaudiere["unit"])]
+            type_energy=device_chaudiere["mode"]
+            if not type_energy in incomingPayload: continue
+            date_yesterday=date.today() - timedelta(days=1)
+            energy_total = self.getenergyFromJSON(incomingPayload, type_energy, date_yesterday.month, str(date_yesterday.year))
+            if energy_total:
+                energy_total = energy_total * 1000  #frisquet fourni des KWh, domoticz attend des Wh
+            else:
+                energy_total= 0
+            Domoticz.Debug("Pour " + str(device.Name) + ", consommation totale de " + str(energy_total) + " KWh à la date du " + str(date_yesterday.strftime("%Y-%m-%d")))
+            energy_total_pre=0
+            try:
+                energy_total_pre=self.getLastEnergyOfMonth(self.num_chaudiere, type_energy, date_yesterday.month, date_yesterday.year).get("monthly_energy_to_date", 0)
+            except Exception:
+                pass
+            energy_yesterday = energy_total - energy_total_pre
+            Domoticz.Debug("Pour " + str(device.Name) + ", consommation totale de " + str(energy_yesterday) + " KWh précédement enregistrée, soit " \
+                           + str(energy_yesterday) + "KWh de différence")
+            self.writeEnergy(type_energy, str(date_yesterday),energy_yesterday, energy_total)
+            device.Update(nValue=0, sValue="-1;" + str(energy_yesterday) + ";" + str(date_yesterday))
+
+    def InitEnergyFromFrisquet(self, device_init, incomingPayload):
+        device = Devices[int(device_init[0])]
+        type_energy=device_init[1]
+        date_trt = (datetime.now() - relativedelta(months=24))                               #la chaudiere fourni uniquement 2 ans d'historiques
+        date_trt = date(date_trt.year, date_trt.month, 1) + relativedelta(months=1, days=-1) #We have only one value per month, so we set it on the last day
+        first_day_of_month = datetime.now().replace(day=1).date()
+        Domoticz.Debug("Initializing energy data for " + str(device.Name) + " entre " + str(date_trt.strftime("%Y-%m-%d")) + " et " +  str(first_day_of_month.strftime("%Y-%m-%d")))
+        if not type_energy in incomingPayload: return
+        while date_trt < first_day_of_month:
+            Domoticz.Debug("Traitement de " + str(date_trt.strftime("%Y-%m-%d")))
+            energy_total = self.getenergyFromJSON(incomingPayload, type_energy, date_trt.month, str(date_trt.year))
+            if energy_total:
+                energy_total = energy_total * 1000  #frisquet fourni des KWh, domoticz attend des Wh
+                Domoticz.Debug("Pour " + str(device.Name) + ", consommation de " + str(energy_total) + " KWh à la date du " + str(date_trt.strftime("%Y-%m-%d")))
+                device.Update(nValue=0, sValue="-1;" + str(energy_total) + ";" + str(date_trt))
+            else:
+                Domoticz.Debug("Rien a mettre à jour pour " + str(device.Name) + " à la date du " +str(date_trt.strftime("%Y-%m-%d")))
+            date_trt += relativedelta(months=1, day=31)
+        del self.initializeEnergy[0]
 
     def updateDeviceFromFrisquetByZone(self, zone):
         num_zone = str(zone["numero"])
@@ -209,7 +362,7 @@ class FrisquetConnectPlugin:
     def updateDeviceFromFrisquetChaudiere(self):
         for device_chaudiere in const.C_CHAUDIERE:
             device=Devices[int(device_chaudiere["unit"])]
-            if not getattr(const, device_chaudiere["mode"], None) == None: #pour l'instant seulement ECS, donc on garde en dur
+            if device_chaudiere["mode"] and getattr(const, device_chaudiere["mode"], None) == "MODE_ECS": #pour l'instant seulement ECS, donc on garde en dur
                 ecs_out=str(self.incomingPayload["ecs"]["MODE_ECS"]["id"])
                 Domoticz.Debug("Mise à jour de " + str(device.Name) + ", valeur recue :  " + str(ecs_out))
                 ecs_in= next((m["value_in"] for m in getattr(const, device_chaudiere["mode"], None) if m["value_out"] == ecs_out), None)
@@ -223,8 +376,8 @@ class FrisquetConnectPlugin:
 #               TO DO
 
     def createDeviceByZone(self, zone):
-#Zone 1 : 11 TAMB, 12 CONS_CONF, 13 CONS_RED, 14, CONS_HG, 15 MODE PERMANENT, 16 MODE ACTUEL
-#Zone 2:  21 TAMB, 22 CONS_CONF, etc.
+        #Zone 1 : 11 TAMB, 12 CONS_CONF, 13 CONS_RED, 14, CONS_HG, 15 MODE PERMANENT, 16 MODE ACTUEL
+        #Zone 2:  21 TAMB, 22 CONS_CONF, etc.
         num_zone = str(zone["numero"])
         nom_zone = zone["nom"]
         for device_zone in const.C_ZONE:
@@ -241,12 +394,23 @@ class FrisquetConnectPlugin:
         for device_chaudiere in const.C_CHAUDIERE:
             if not Devices or int(device_chaudiere["unit"]) not in Devices:
                 Domoticz.Debug("Creation du device " + device_chaudiere["nom"])
-                Domoticz.Device(Name=device_chaudiere["nom"], \
-                                Unit=int(device_chaudiere["unit"]), \
-                                TypeName=device_chaudiere["TypeName"], \
-                                Options=device_chaudiere["Options"], \
-                                Image=device_chaudiere["Image"]
-                                ).Create()
+                if device_chaudiere["TypeName"]:
+                    Domoticz.Device(Name=device_chaudiere["nom"], \
+                                    Unit=int(device_chaudiere["unit"]), \
+                                    TypeName=device_chaudiere["TypeName"], \
+                                    Options=device_chaudiere["Options"], \
+                                    Image=device_chaudiere["Image"]
+                                    ).Create()
+                else:
+                    Domoticz.Device(Name=device_chaudiere["nom"], \
+                                    Unit=int(device_chaudiere["unit"]), \
+                                    Type=device_chaudiere["Type"], \
+                                    Subtype=device_chaudiere["Subtype"], \
+                                    Options=device_chaudiere["Options"], \
+                                    Image=device_chaudiere["Image"]
+                                    ).Create()
+                self.initializeEnergy.append((device_chaudiere["unit"], device_chaudiere["mode"]))
+                Domoticz.Debug("Initialize Energy : " + str(self.initializeEnergy))
 
     def onStart(self):
         Domoticz.Status("Starting Frisquet-connect")
@@ -285,6 +449,15 @@ class FrisquetConnectPlugin:
             case "getFrisquetData":
                 sendData = { 'Verb' : 'GET',
                              'URL' : const.SITE_API + '/' + self.num_chaudiere + '?token=' + self.auth_token,
+                             'Headers' : { 'Connection': 'keep-alive', \
+                                           'Accept': '*/*', \
+                                           'Host': const.HOST
+                                         }
+                           }
+            case "getFrisquetEnergy":
+                sendData = { 'Verb' : 'GET',
+                             'URL' : const.SITE_API + '/' + self.num_chaudiere + '/conso?token=' + self.auth_token \
+                                     + "&types[]=CHF&types[]=SAN",
                              'Headers' : { 'Connection': 'keep-alive', \
                                            'Accept': '*/*', \
                                            'Host': const.HOST
@@ -338,17 +511,23 @@ class FrisquetConnectPlugin:
                 if not self.num_chaudiere:
                     self.num_chaudiere = self.incomingPayload["utilisateur"]["sites"][0]["identifiant_chaudiere"]
                 Domoticz.Debug("numero chaudiere : " + self.num_chaudiere)
+                self.httpConn.Disconnect()
             case "getFrisquetData":
                 self.createDeviceChaudiere()
                 self.updateDeviceFromFrisquetChaudiere()
                 for zone in self.incomingPayload["zones"]:
                     self.createDeviceByZone(zone)
                     self.updateDeviceFromFrisquetByZone(zone)
+                self.httpConnData.Disconnect()
+                self.getFrisquetEnergy()
+            case "getFrisquetEnergy":
+                self.updateEnergyFromFrisquet(self.incomingPayload)
+                self.httpConnEnergy.Disconnect()
             case "pushUpdateToFrisquet":
                 Domoticz.Debug("Données correctement envoyée et reçues")
+                self.httpConn.Disconnect()
             case _:
                 Domoticz.Error("Connection inconnue")
-        self.httpConn.Disconnect()
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
@@ -370,13 +549,13 @@ class FrisquetConnectPlugin:
         Domoticz.Debug("onDisconnect called")
 
     def onHeartbeat(self):
-        Domoticz.Debug("onHeartbeat called")
-        if not self.active:
+        if not self.active: #pb avec le numéro de chaudiere
             return
         self.beatCounter += 1
         if self.beatCounter % 3 != 1:
             Domoticz.Debug('Heartbeat non pris en compte')
             return
+        Domoticz.Debug("onHeartbeat called")
         if self.is_token_valid() and self.num_chaudiere:
             self.getFrisquetData()
         #on renouvelle le token à la fin du heartbeat pour éviter les problèmes entre la réponse du renouvellement et la nouvelle demande de données

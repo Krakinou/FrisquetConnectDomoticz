@@ -15,10 +15,10 @@ Domoticz Plugin For Frisquet Connect Boiler control
 - Force one or multiple zone on a mode irrespectively of the program (derogation and permanent mode)
 - Access the temperature from one or multiple zone(s)
 - Hot Water Control
+- Check Boiler energy consumption (in KWh)
 
 # Work in Progress
 - Add image for heating mode
-- kWh
 - Boost control
 - On/Off control
 - Automatic/Manual trigger
@@ -61,6 +61,10 @@ Device Name | Type | Zone Dependent | Fonction |
 |Mode Dérogation | Selector Switch | No | Will force Confort or Reduce mode for all zone until the next cycle |
 |Mode Actuel Zone X | Text | Yes | Indicate the current heating mode |
 |Mode Eau Chaude Sanitaire | Selector Switch | No | Hot Water control |
+|Consommation Chauffage | Managed Counter | Non | How many KWh consummed for heating |
+|Consommation ECS | Managed Counter | Non | How many KWh consummed for hot water |
+
+Please note that the boiler only provides energy consumption on a monthly agregate, and that the figures are updated only once a day, at midnight, for the previous day.
 
 # Contribute
 Submit your PR on the dev branch.
