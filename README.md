@@ -27,7 +27,6 @@ Domoticz Plugin For Frisquet Connect Boiler control
 - Program
 - Alarms
 - Plugin update message
-- translation
 
 # Installation
 
@@ -65,6 +64,7 @@ Device Name | Type | Zone Dependent | Fonction |
 |Consommation ECS | Managed Counter | Non | How many KWh consummed for hot water |
 
 Please note that the boiler only provides energy consumption on a monthly agregate, and that the figures are updated only once a day, at midnight, for the previous day.
+Daily energy consumption is calculated by the plugin by substracting the total consumption of the previous day to the current consumption.
 
 # Contribute
 Submit your PR on the dev branch.
