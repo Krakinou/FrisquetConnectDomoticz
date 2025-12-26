@@ -13,13 +13,13 @@
 <plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.3.0" wikilink="https://github.com/Krakinou/FrisquetConnectDomoticz">
     <description>
         <h2>Frisquet-connect Domoticz</h2><br/>
-        EN: Connector allowing Frisquet boiler control. A Frisquet-Connect box and an active account are required.
-        FR: Connecteur permettant de controler sa chaudiere Frisquet. Un boitier Frisquet-Connect et un compte actif sont requis.
+        <br/>EN: Connector allowing Frisquet boiler control. A Frisquet-Connect box and an active account are required.
+        <br/>FR: Connecteur permettant de controler sa chaudiere Frisquet. Un boitier Frisquet-Connect et un compte actif sont requis.
     </description>
     <params>
         <param field="Username" label="Username" required="true"/>
 	<param field="Password" label="Password" password="true" required="true"/>
-        <param field="Mode1" label="Boiled ID">
+        <param field="Mode1" label="Boiler ID">
             <description>
                <br/>EN : Fill this field only if you own multiple boilers. In this case you must create multiple instance of the plugin, one by boiler. If you have only one boiler, leave this field empty
                <br/>FR :Ne remplissez ce champs que si votre site possede plusieurs chaudiere. Dans ce cas vous devrez créer plusieurs instances du plugin, une par chaudiere. Si vous n'avez qu'une seule chaudiere, laisser ce champs vide.
