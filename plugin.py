@@ -364,18 +364,18 @@ class FrisquetConnectPlugin:
                 if device.Unit in Devices:
                     device.Update(nValue=int(nValue), sValue=str(sValue))
 
-    def updateDeviceFromFrisquetboiler(self):
+    def updateDeviceFromFrisquetboiler(self, incomingPayload):
         for device_boiler in const.C_BOILER:
             device=Devices[int(device_boiler["unit"])]
             if not device_boiler["mode"]:
                 continue
             mode = str(device_boiler["mode"])
             if mode == "MODE_ECS":
-                value_out=str(self.incomingPayload["ecs"]["MODE_ECS"]["id"])
+                value_out=str(incomingPayload["ecs"]["MODE_ECS"]["id"])
                 sValue=str(next((m["value_in"] for m in getattr(const, mode, None) if m["value_out"] == value_out), None))
                 nValue= next((m["nValue"]   for m in getattr(const, mode, None) if m["value_out"] == value_out), None)
             if "alarmes" in mode:
-                alarm_list = self.incomingPayload.get(mode, [])
+                alarm_list = incomingPayload.get(mode, [])
                 if alarm_list:
                     value_out = sValue =str(alarm_list[0]["nom"])
                     nValue=3
@@ -530,7 +530,7 @@ class FrisquetConnectPlugin:
                 self.httpConn.Disconnect()
             case "getFrisquetData":
                 self.createDeviceboiler()
-                self.updateDeviceFromFrisquetboiler()
+                self.updateDeviceFromFrisquetboiler(self.incomingPayload)
                 for zone in self.incomingPayload["zones"]:
                     self.createDeviceByZone(zone)
                     self.updateDeviceFromFrisquetByZone(zone)
