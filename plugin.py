@@ -447,7 +447,7 @@ class FrisquetConnectPlugin:
         Domoticz.Debug(_("onConnect started for  : ") + str(Connection.Name))
 
         if (Status != 0):
-            Domoticz.Log(_("Failed to connect (%(status)s) to %(address)s with error %(error)s") % { "status":str(Status), "address":Parameters["Address"], "error":Description})
+            Domoticz.Log(_("Failed to connect to %(address)s with error  %(status)s : %(error)s") % { "status":str(Status), "address":const.HOST, "error":Description})
             return
 
         match Connection.Name:
