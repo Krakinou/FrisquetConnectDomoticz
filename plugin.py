@@ -202,7 +202,7 @@ class FrisquetConnectPlugin:
         if value_out == False:
             if device_dero.nValue > 0:
                 Domoticz.Debug(_("Updating %s with value 0") %  str(device_dero.Name))
-                device.Update(nValue=0, sValue="0")
+                device_dero.Update(nValue=0, sValue="0")
             return
         sValue_dero=str(next( (m["value_in"] for m in const.MODE_DERO if m["value_out"] == str(zone["carac_zone"]["MODE"])), None))
         Domoticz.Debug(_("Switch Selector value is %s, value to update is %d") %  (str(zone["carac_zone"]["MODE"]),  sValue_dero))
@@ -364,18 +364,18 @@ class FrisquetConnectPlugin:
                 if device.Unit in Devices:
                     device.Update(nValue=int(nValue), sValue=str(sValue))
 
-    def updateDeviceFromFrisquetboiler(self):
+    def updateDeviceFromFrisquetboiler(self, incomingPayload):
         for device_boiler in const.C_BOILER:
             device=Devices[int(device_boiler["unit"])]
             if not device_boiler["mode"]:
                 continue
             mode = str(device_boiler["mode"])
             if mode == "MODE_ECS":
-                value_out=str(self.incomingPayload["ecs"]["MODE_ECS"]["id"])
+                value_out=str(incomingPayload["ecs"]["MODE_ECS"]["id"])
                 sValue=str(next((m["value_in"] for m in getattr(const, mode, None) if m["value_out"] == value_out), None))
                 nValue= next((m["nValue"]   for m in getattr(const, mode, None) if m["value_out"] == value_out), None)
             if "alarmes" in mode:
-                alarm_list = self.incomingPayload.get(mode, [])
+                alarm_list = incomingPayload.get(mode, [])
                 if alarm_list:
                     value_out = sValue =str(alarm_list[0]["nom"])
                     nValue=3
@@ -447,7 +447,7 @@ class FrisquetConnectPlugin:
         Domoticz.Debug(_("onConnect started for  : ") + str(Connection.Name))
 
         if (Status != 0):
-            Domoticz.Log(_("Failed to connect (%(status)s) to %(address)s with error %(error)s") % { "status":str(Status), "address":Parameters["Address"], "error":Description})
+            Domoticz.Log(_("Failed to connect to %(address)s with error  %(status)s : %(error)s") % { "status":str(Status), "address":const.HOST, "error":Description})
             return
 
         match Connection.Name:
@@ -530,7 +530,7 @@ class FrisquetConnectPlugin:
                 self.httpConn.Disconnect()
             case "getFrisquetData":
                 self.createDeviceboiler()
-                self.updateDeviceFromFrisquetboiler()
+                self.updateDeviceFromFrisquetboiler(self.incomingPayload)
                 for zone in self.incomingPayload["zones"]:
                     self.createDeviceByZone(zone)
                     self.updateDeviceFromFrisquetByZone(zone)
