@@ -202,7 +202,7 @@ class FrisquetConnectPlugin:
         if value_out == False:
             if device_dero.nValue > 0:
                 Domoticz.Debug(_("Updating %s with value 0") %  str(device_dero.Name))
-                device.Update(nValue=0, sValue="0")
+                device_dero.Update(nValue=0, sValue="0")
             return
         sValue_dero=str(next( (m["value_in"] for m in const.MODE_DERO if m["value_out"] == str(zone["carac_zone"]["MODE"])), None))
         Domoticz.Debug(_("Switch Selector value is %s, value to update is %d") %  (str(zone["carac_zone"]["MODE"]),  sValue_dero))
