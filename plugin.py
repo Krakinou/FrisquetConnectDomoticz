@@ -9,7 +9,7 @@
 #       programmation / jour
 
 """
-<plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.3.2" wikilink="https://github.com/Krakinou/FrisquetConnectDomoticz">
+<plugin key="Frisquet-connect" name="Frisquet-Connect" author="Krakinou" version="0.3.3" wikilink="https://github.com/Krakinou/FrisquetConnectDomoticz">
     <description>
         <h2>Frisquet-connect Domoticz</h2><br/>
         <br/>EN: Connector allowing Frisquet boiler control. A Frisquet-Connect box and an active account are required.
@@ -568,7 +568,7 @@ class FrisquetConnectPlugin:
         if not self.active: #pb avec le numéro de chaudiere
             return
         self.beatCounter += 1
-        if self.beatCounter % 3 != 1:
+        if self.beatCounter % 90 != 1:
             return
         if self.is_token_valid() and self.boilerID:
             self.getFrisquetData()
