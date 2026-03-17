@@ -65,7 +65,8 @@ Device Name | Type | Zone Dependent | Fonction |
 |Alertes | Alert | No | Any user alarms on the boiler |
 |Alertes Pro | Alert | No | Any Professional alarms on the boiler |
 
-Please note that the boiler only provides energy consumption on a monthly agregate, and that the figures are updated only once a day, at midnight, for the previous day.
+Due to Frisquet API restrictions, data are updated from the Frisquet server only every quarter of an hour
+Please note also that the boiler only provides energy consumption on a monthly agregate, and that the figures are updated only once a day, at midnight, for the previous day.
 Daily energy consumption is calculated by the plugin by substracting the total consumption of the previous day to the current consumption.
 
 # Contribute
