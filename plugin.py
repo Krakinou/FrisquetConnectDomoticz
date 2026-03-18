@@ -76,6 +76,7 @@ class FrisquetConnectPlugin:
         self.beatCounter = 0
         self.onceADay = None
         self.initializeEnergy = []
+		self.refreshAfterUpdate = False
         return
 
     def is_token_valid(self):
@@ -555,7 +556,8 @@ class FrisquetConnectPlugin:
                     nValue=0
                 case 244: #switch selector
                     nValue  = self.getValue(Unit, "nValue", Level)
-            Domoticz.Debug(_("Updating %(name)s with nValue %(nvalue)d and sValue %(svalue)s") % { "name":device.Name, "nvalue":nValue,  "svalue":str(Level)})
+            self.refreshAfterUpdate = True
+			Domoticz.Debug(_("Updating %(name)s with nValue %(nvalue)d and sValue %(svalue)s") % { "name":device.Name, "nvalue":nValue,  "svalue":str(Level)})
             device.Update(nValue=nValue, sValue=str(Level))
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -568,7 +570,7 @@ class FrisquetConnectPlugin:
         if not self.active: #pb avec le numéro de chaudiere
             return
         self.beatCounter += 1
-        if self.beatCounter % 90 != 1:
+        if self.beatCounter % 90 != 1 and self.refreshAfterUpdate == False:
             return
         if self.is_token_valid() and self.boilerID:
             self.getFrisquetData()
